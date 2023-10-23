@@ -1,7 +1,6 @@
 // @ts-ignore
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 
-import * as Config from 'config';
 import * as lib from 'lib';
 import * as log from 'log';
 import * as once_cell from 'once_cell';
@@ -13,13 +12,19 @@ import type { Entity } from './ecs';
 import type { Ext } from './extension';
 import type { Rectangle } from './rectangle';
 import * as scheduler from 'scheduler';
+import * as focus from 'focus';
 
-const { DefaultPointerPosition } = Config;
 const { Gdk, Meta, Shell, St, GLib } = imports.gi;
 
 const { OnceCell } = once_cell;
 
 export var window_tracker = Shell.WindowTracker.get_default();
+
+/** Contains SourceID of a restack operation. Used to prevent multiple restacks. */
+let SCHEDULED_RESTACK: number | null = null
+
+/** Contains SourceID of an active hint operation. */
+let ACTIVE_HINT_SHOW_ID: number | null = null
 
 const WM_TITLE_BLACKLIST: Array<string> = [
     'Firefox',
@@ -88,6 +93,11 @@ export class ShellWindow {
 
         this.known_workspace = this.workspace_id()
 
+        // Float fullscreen windows by default, such as Kodi.
+        if (this.meta.is_fullscreen()) {
+            ext.add_tag(entity, Tags.Floating)
+        }
+
         if (this.may_decorate()) {
             if (!window.is_client_decorated()) {
                 if (ext.settings.show_title()) {
@@ -113,11 +123,11 @@ export class ShellWindow {
     }
 
     activate(move_mouse: boolean = true): void {
-        activate(move_mouse, this.ext.conf.default_pointer_position, this.meta);
+        activate(this.ext, move_mouse, this.meta);
     }
 
     actor_exists(): boolean {
-        return this.meta.get_compositor_private() !== null;
+        return !this.destroying && this.meta.get_compositor_private() !== null;
     }
 
     private bind_window_events() {
@@ -178,8 +188,7 @@ export class ShellWindow {
             this.ext.overlay.set_style(`background: ${gdk.to_string()}`);
         }
 
-        if (this.border)
-            this.border.set_style(`border-color: ${color_value}`);
+        this.update_border_style()
     }
 
     cmdline(): string | null {
@@ -241,10 +250,8 @@ export class ShellWindow {
     }
 
     is_maximized(): boolean {
-        let maximized = this.meta.get_maximized() !== 0;
-        return maximized;
+        return this.meta.get_maximized() !== 0
     }
-
 
     /**
      * Window is maximized, 0 gapped or smart gapped
@@ -304,7 +311,7 @@ export class ShellWindow {
                 // Transient windows are most likely dialogs
                 && !this.is_transient()
                 // If a window lacks a class, it's probably a web browser dialog
-                && wm_class !== null;
+                && wm_class !== null
         };
 
         return !ext.contains_tag(this.entity, Tags.Floating)
@@ -342,7 +349,7 @@ export class ShellWindow {
             if (on_complete) ext.register_fn(on_complete);
             if (meta.appears_focused) {
                 this.update_border_layout();
-                this.show_border();
+                ext.show_border_on_focused();
             }
         }
     }
@@ -372,7 +379,8 @@ export class ShellWindow {
         let br = other.rect().clone();
 
         other.move(ext, ar);
-        this.move(ext, br, () => place_pointer_on(this.ext.conf.default_pointer_position, this.meta));
+        this.move(ext, br, () => place_pointer_on(this.ext, this.meta)
+        );
     }
 
     title(): string {
@@ -409,14 +417,37 @@ export class ShellWindow {
         if (!this.border) return
 
         this.restack();
+        this.update_border_style();
         if (this.ext.settings.active_hint()) {
             let border = this.border;
-            if (!this.meta.is_fullscreen() &&
-                (!this.is_single_max_screen() || this.is_snap_edge()) &&
-                !this.meta.minimized &&
-                this.same_workspace()) {
+
+            const permitted = () => {
+                return this.actor_exists()
+                    && this.ext.focus_window() == this
+                    && !this.meta.is_fullscreen()
+                    && (!this.is_single_max_screen() || this.is_snap_edge())
+                    && !this.meta.minimized
+            }
+
+            if (permitted()) {
                 if (this.meta.appears_focused) {
                     border.show();
+
+                    // Focus will be re-applied to fix windows moving across workspaces
+                    let applications = 0
+
+                    // Ensure that the border is shown
+                    if (ACTIVE_HINT_SHOW_ID !== null) GLib.source_remove(ACTIVE_HINT_SHOW_ID)
+                    ACTIVE_HINT_SHOW_ID = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
+                        if (applications > 4 && !this.same_workspace() || !permitted()) {
+                            ACTIVE_HINT_SHOW_ID = null
+                            return GLib.SOURCE_REMOVE
+                        }
+
+                        applications += 1
+                        border.show()
+                        return GLib.SOURCE_CONTINUE
+                    })
                 }
             }
         }
@@ -429,6 +460,10 @@ export class ShellWindow {
             return workspace_id === global.workspace_manager.get_active_workspace_index()
         }
         return false;
+    }
+
+    same_monitor() {
+        return this.meta.get_monitor() === global.display.get_current_monitor()
     }
 
     /**
@@ -457,12 +492,22 @@ export class ShellWindow {
                 break;
         }
 
-        const action = () => {
-            if (!this.actor_exists) return
+        let restacks = 0
 
-            let border = this.border;
-            let actor = this.meta.get_compositor_private();
-            let win_group = global.window_group;
+        const action = () => {
+            const count = restacks;
+            restacks += 1
+
+            if (!this.actor_exists && count === 0) return true
+
+            if (count === 3) {
+                if (SCHEDULED_RESTACK !== null) GLib.source_remove(SCHEDULED_RESTACK)
+                SCHEDULED_RESTACK = null
+            }
+
+            const border = this.border;
+            const actor = this.meta.get_compositor_private();
+            const win_group = global.window_group;
 
             if (actor && border && win_group) {
                 this.update_border_layout();
@@ -496,10 +541,11 @@ export class ShellWindow {
                 }
             }
 
-            return false; // make sure it runs once
+            return true
         }
 
-        GLib.timeout_add(GLib.PRIORITY_LOW, restackSpeed, action)
+        if (SCHEDULED_RESTACK !== null) GLib.source_remove(SCHEDULED_RESTACK)
+        SCHEDULED_RESTACK = GLib.timeout_add(GLib.PRIORITY_LOW, restackSpeed, action)
     }
 
     get always_top_windows(): Clutter.Actor[] {
@@ -581,6 +627,15 @@ export class ShellWindow {
         }
     }
 
+    update_border_style() {
+        const { settings } = this.ext
+        const color_value = settings.hint_color_rgba();
+        const radius_value = settings.active_hint_border_radius();
+        if (this.border) {
+            this.border.set_style(`border-color: ${color_value}; border-radius: ${radius_value}px;`);
+        }
+    }
+
     private wm_class_changed() {
         if (this.is_tilable(this.ext)) {
             this.ext.connect_window(this);
@@ -592,12 +647,12 @@ export class ShellWindow {
 
     private window_changed() {
         this.update_border_layout();
-        this.show_border();
+        this.ext.show_border_on_focused();
     }
 
     private window_raised() {
         this.restack(RESTACK_STATE.RAISED);
-        this.show_border();
+        this.ext.show_border_on_focused();
     }
 
     private workspace_changed() {
@@ -606,44 +661,76 @@ export class ShellWindow {
 }
 
 /// Activates a window, and moves the mouse point.
-export function activate(move_mouse: boolean, default_pointer_position: Config.DefaultPointerPosition, win: Meta.Window) {
-    const workspace = win.get_workspace()
-    if (!workspace) return
+export function activate(ext: Ext, move_mouse: boolean, win: Meta.Window) {
+    try {
+        // Return if window was destroyed.
+        if (!win.get_compositor_private()) return
 
-    scheduler.setForeground(win)
+        // Return if window is being destroyed.
+        if (ext.get_window(win)?.destroying) return
 
-    win.unminimize();
-    workspace.activate_with_focus(win, global.get_current_time())
-    win.raise()
+        // Return if window has override-redirect set.
+        if (win.is_override_redirect()) return
 
-    if (move_mouse && !pointer_already_on_window(win)) {
-        place_pointer_on(default_pointer_position, win)
+        const workspace = win.get_workspace()
+        if (!workspace) return
+
+        scheduler.setForeground(win)
+
+        win.unminimize();
+        workspace.activate_with_focus(win, global.get_current_time())
+        win.raise()
+
+        const pointer_placement_permitted = move_mouse
+            && imports.ui.main.modalCount === 0
+            && ext.settings.mouse_cursor_follows_active_window()
+            && !pointer_already_on_window(win)
+            && pointer_in_work_area()
+
+        if (pointer_placement_permitted) {
+            place_pointer_on(ext, win)
+        }
+    } catch (error) {
+        log.error(`failed to activate window: ${error}`)
     }
 }
 
-export function place_pointer_on(default_pointer_position: Config.DefaultPointerPosition, win: Meta.Window) {
+function pointer_in_work_area(): boolean {
+    const cursor = lib.cursor_rect()
+    const indice = global.display.get_current_monitor()
+    const mon = global.display.get_workspace_manager()
+        .get_active_workspace()
+        .get_work_area_for_monitor(indice)
+
+    return mon ? cursor.intersects(mon) : false
+}
+
+function place_pointer_on(ext: Ext, win: Meta.Window) {
     const rect = win.get_frame_rect();
     let x = rect.x;
     let y = rect.y;
 
-    switch (default_pointer_position) {
-        case DefaultPointerPosition.TopLeft:
+    let key = Object.keys(focus.FocusPosition)[ext.settings.mouse_cursor_focus_location()]
+    let pointer_position_ = focus.FocusPosition[key as keyof typeof focus.FocusPosition]
+
+    switch (pointer_position_) {
+        case focus.FocusPosition.TopLeft:
             x += 8;
             y += 8;
             break;
-        case DefaultPointerPosition.BottomLeft:
+        case focus.FocusPosition.BottomLeft:
             x += 8;
             y += (rect.height - 16);
             break;
-        case DefaultPointerPosition.TopRight:
+        case focus.FocusPosition.TopRight:
             x += (rect.width - 16);
             y += 8;
             break;
-        case DefaultPointerPosition.BottomRight:
+        case focus.FocusPosition.BottomRight:
             x += (rect.width - 16);
             y += (rect.height - 16);
             break;
-        case DefaultPointerPosition.Center:
+        case focus.FocusPosition.Center:
             x += (rect.width / 2) + 8;
             y += (rect.height / 2) + 8;
             break;

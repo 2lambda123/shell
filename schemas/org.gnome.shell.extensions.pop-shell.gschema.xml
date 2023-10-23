@@ -7,6 +7,17 @@
             <summary>Show a hint around the active window</summary>
         </key>
 
+        <key type="u" name="active-hint-border-radius">
+            <default>5</default>
+            <range min="0" max="30"/>
+            <summary>Border radius for active window hint, in pixels</summary>
+        </key>
+
+        <key type="b" name="fullscreen-launcher">
+            <default>false</default>
+            <summary>Allow showing launcher above fullscreen windows</summary>
+        </key>
+
         <key type="u" name="gap-inner">
             <default>2</default>
             <summary>Gap between tiled windows</summary>
@@ -25,6 +36,16 @@
         <key type="b" name="show-skip-taskbar">
             <default>true</default>
             <summary>Handle minimized to tray windows</summary>
+        </key>
+
+        <key type="b" name="mouse-cursor-follows-active-window">
+            <default>true</default>
+            <summary>Move cursor to active window when navigating with keyboard shortcuts or touchpad gestures</summary>
+        </key>
+
+        <key type="u" name="mouse-cursor-focus-location">
+            <default>0</default>
+            <summary>The location the mouse cursor focuses when selecting a window</summary>
         </key>
 
         <!-- Tiling Options -->
@@ -51,6 +72,11 @@
         <key type="b" name="tile-by-default">
             <default>false</default>
             <summary>Tile launched windows by default</summary>
+        </key>
+
+        <key type="b" name="stacking-with-mouse">
+            <default>true</default>
+            <summary>Allow for stacking windows as a result of dragging a window with mouse</summary>
         </key>
 
         <!-- Focus Shifting -->
@@ -140,6 +166,26 @@
 
         <key type="as" name="tile-move-right">
             <default><![CDATA[['Right','KP_Right','l']]]></default>
+            <summary>Move window right</summary>
+        </key>
+
+        <key type="as" name="tile-move-left-global">
+            <default><![CDATA[[]]]></default>
+            <summary>Move window left</summary>
+        </key>
+
+        <key type="as" name="tile-move-down-global">
+            <default><![CDATA[[]]]></default>
+            <summary>Move window down</summary>
+        </key>
+
+        <key type="as" name="tile-move-up-global">
+            <default><![CDATA[[]]]></default>
+            <summary>Move window up</summary>
+        </key>
+
+        <key type="as" name="tile-move-right-global">
+            <default><![CDATA[[]]]></default>
             <summary>Move window right</summary>
         </key>
 

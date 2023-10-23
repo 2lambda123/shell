@@ -12,9 +12,12 @@ import type { Ext } from 'extension'
 import type { ShellWindow } from 'window'
 import type { JsonIPC } from 'launcher_service'
 
-const { Clutter, Gio, GLib, Meta, Shell } = imports.gi
+const { Clutter, Gio, GLib, Meta, Shell, St } = imports.gi
 
 const app_sys = Shell.AppSystem.get_default();
+
+const Clipboard = St.Clipboard.get_default();
+const CLIPBOARD_TYPE = St.ClipboardType.CLIPBOARD;
 
 interface SearchOption {
     result: JsonIPC.SearchResult
@@ -29,6 +32,7 @@ export class Launcher extends search.Search {
     service: null | service.LauncherService = null
     append_id: null | number = null
     active_menu: null | any = null
+    opened: boolean = false
 
     constructor(ext: Ext) {
         super()
@@ -42,6 +46,7 @@ export class Launcher extends search.Search {
         this.cancel = () => {
             ext.overlay.visible = false
             this.stop_services(ext)
+            this.opened = false
         }
 
         this.search = (pat: string) => {
@@ -92,6 +97,16 @@ export class Launcher extends search.Search {
             const option = this.options_array[id]
             if (option) {
                 this.service?.quit(option.result.id)
+            }
+        }
+
+        this.copy = (id: number) => {
+            const option = this.options_array[id];
+            if (!option) return;
+            if (option.result.description) {
+                Clipboard.set_text(CLIPBOARD_TYPE, option.result.description);
+            } else if (option.result.name) {
+                Clipboard.set_text(CLIPBOARD_TYPE, option.result.name);
             }
         }
     }
@@ -263,7 +278,7 @@ export class Launcher extends search.Search {
     }
 
     load_desktop_files() {
-        log.warn("pop-shell: deprecated function called (dialog_launcher::load_desktop_files)")
+        log.warn("pop-shell: deprecated function called (launcher::load_desktop_files)")
     }
 
     locate_by_app_info(info: any): null | ShellWindow {
@@ -293,18 +308,37 @@ export class Launcher extends search.Search {
     }
 
     open(ext: Ext) {
-        const mon = ext.monitor_work_area(ext.active_monitor())
+        ext.tiler.exit(ext);
 
-        super.cleanup()
+        // Do not allow opening twice
+        if (this.opened) return
 
-        this.start_services()
-        this.search('')
+        // Do not activate if the focused window is fullscreen
+        if (!ext.settings.fullscreen_launcher() && ext.focus_window()?.meta.is_fullscreen()) return
+
+        this.opened = true
+
+        const active_monitor = ext.active_monitor()
+        const mon_work_area = ext.monitor_work_area(active_monitor)
+        const mon_area = ext.monitor_area(active_monitor)
+        const mon_width = mon_area ? mon_area.width : mon_work_area.width
 
         super._open(global.get_current_time(), false)
 
-        this.dialog.dialogLayout.x = (mon.width / 2) - (this.dialog.dialogLayout.width / 2)
+        if (!this.dialog.visible) {
+            this.clear()
+            this.cancel()
+            this.close()
+            return
+        }
 
-        let height = mon.height >= 900 ? mon.height / 2 : mon.height / 3.5
+        super.cleanup()
+        this.start_services()
+        this.search('')
+
+        this.dialog.dialogLayout.x = (mon_width / 2) - (this.dialog.dialogLayout.width / 2)
+
+        let height = mon_work_area.height >= 900 ? mon_work_area.height / 2 : mon_work_area.height / 3.5
         this.dialog.dialogLayout.y = height - (this.dialog.dialogLayout.height / 2)
     }
 

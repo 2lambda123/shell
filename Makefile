@@ -57,7 +57,7 @@ disable:
 listen:
 	journalctl -o cat -n 0 -f "$$(which gnome-shell)" | grep -v warning
 
-local-install: depcheck compile install configure enable restart-shell
+local-install: depcheck compile install configure restart-shell enable
 
 install:
 	rm -rf $(INSTALLBASE)/$(INSTALLNAME)
@@ -70,7 +70,7 @@ uninstall:
 restart-shell:
 	echo "Restart shell!"
 	if bash -c 'xprop -root &> /dev/null'; then \
-		busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s 'Meta.restart("Restarting Gnome...")'; \
+		pkill -HUP gnome-shell; \
 	else \
 		gnome-session-quit --logout; \
 	fi
@@ -83,3 +83,5 @@ update-repository:
 
 zip-file: all
 	cd _build && zip -qr "../$(UUID)_$(VERSION).zip" .
+
+.NOTPARALLEL: debug local-install

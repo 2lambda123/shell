@@ -48,7 +48,11 @@ function settings_new_schema(schema: string): Settings {
 }
 
 const ACTIVE_HINT = "active-hint";
+const ACTIVE_HINT_BORDER_RADIUS = "active-hint-border-radius";
+const STACKING_WITH_MOUSE = "stacking-with-mouse";
 const COLUMN_SIZE = "column-size";
+const EDGE_TILING = "edge-tiling";
+const FULLSCREEN_LAUNCHER = "fullscreen-launcher"
 const GAP_INNER = "gap-inner";
 const GAP_OUTER = "gap-outer";
 const ROW_SIZE = "row-size";
@@ -60,6 +64,8 @@ const HINT_COLOR_RGBA = "hint-color-rgba";
 const DEFAULT_RGBA_COLOR = "rgba(251, 184, 108, 1)"; //pop-orange
 const LOG_LEVEL = "log-level";
 const SHOW_SKIPTASKBAR = "show-skip-taskbar";
+const MOUSE_CURSOR_FOLLOWS_ACTIVE_WINDOW = "mouse-cursor-follows-active-window"
+const MOUSE_CURSOR_FOCUS_LOCATION = "mouse-cursor-focus-location";
 
 export class ExtensionSettings {
     ext: Settings = settings_new_schema(Me.metadata["settings-schema"]);
@@ -73,12 +79,24 @@ export class ExtensionSettings {
         return this.ext.get_boolean(ACTIVE_HINT);
     }
 
+    active_hint_border_radius(): number {
+        return this.ext.get_uint(ACTIVE_HINT_BORDER_RADIUS);
+    }
+
+    stacking_with_mouse(): boolean {
+        return this.ext.get_boolean(STACKING_WITH_MOUSE);
+    }
+
     column_size(): number {
         return this.ext.get_uint(COLUMN_SIZE);
     }
 
     dynamic_workspaces(): boolean {
         return this.mutter ? this.mutter.get_boolean("dynamic-workspaces") : false;
+    }
+
+    fullscreen_launcher(): boolean {
+        return this.ext.get_boolean(FULLSCREEN_LAUNCHER)
     }
 
     gap_inner(): number {
@@ -151,14 +169,38 @@ export class ExtensionSettings {
         return this.ext.get_boolean(SHOW_SKIPTASKBAR);
     }
 
+    mouse_cursor_follows_active_window(): boolean {
+        return this.ext.get_boolean(MOUSE_CURSOR_FOLLOWS_ACTIVE_WINDOW);
+    }
+
+    mouse_cursor_focus_location(): number {
+        return this.ext.get_uint(MOUSE_CURSOR_FOCUS_LOCATION);
+    }
+
     // Setters
 
     set_active_hint(set: boolean) {
         this.ext.set_boolean(ACTIVE_HINT, set);
     }
 
+    set_active_hint_border_radius(set: number) {
+        this.ext.set_uint(ACTIVE_HINT_BORDER_RADIUS, set);
+    }
+
+    set_stacking_with_mouse(set: boolean) {
+        this.ext.set_boolean(STACKING_WITH_MOUSE, set);
+    }
+
     set_column_size(size: number) {
         this.ext.set_uint(COLUMN_SIZE, size);
+    }
+
+    set_edge_tiling(enable: boolean) {
+        this.mutter?.set_boolean(EDGE_TILING, enable)
+    }
+
+    set_fullscreen_launcher(enable: boolean) {
+        this.ext.set_boolean(FULLSCREEN_LAUNCHER, enable)
     }
 
     set_gap_inner(gap: number) {
@@ -205,5 +247,13 @@ export class ExtensionSettings {
 
     set_show_skiptaskbar(set: boolean) {
         this.ext.set_boolean(SHOW_SKIPTASKBAR, set);
+    }
+
+    set_mouse_cursor_follows_active_window(set: boolean) {
+        this.ext.set_boolean(MOUSE_CURSOR_FOLLOWS_ACTIVE_WINDOW, set);
+    }
+
+    set_mouse_cursor_focus_location(set: number) {
+        this.ext.set_uint(MOUSE_CURSOR_FOCUS_LOCATION, set);
     }
 }

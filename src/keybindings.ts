@@ -15,10 +15,7 @@ export class Keybindings {
     constructor(ext: Ext) {
         this.ext = ext;
         this.global = {
-            "activate-launcher": () => {
-                ext.tiler.exit(ext);
-                ext.window_search.open(ext);
-            },
+            "activate-launcher": () => ext.window_search.open(ext),
             "tile-enter": () => ext.tiler.enter(ext)
         };
 
@@ -44,6 +41,14 @@ export class Keybindings {
             "toggle-tiling": () => ext.toggle_tiling(),
 
             "toggle-stacking-global": () => ext.auto_tiler?.toggle_stacking(ext),
+
+            "tile-move-left-global": () => ext.tiler.move_left(ext, ext.focus_window()?.entity),
+
+            "tile-move-down-global": () => ext.tiler.move_down(ext, ext.focus_window()?.entity),
+
+            "tile-move-up-global": () => ext.tiler.move_up(ext, ext.focus_window()?.entity),
+
+            "tile-move-right-global": () => ext.tiler.move_right(ext, ext.focus_window()?.entity),
 
             "pop-monitor-left": () => ext.move_monitor(Meta.DisplayDirection.LEFT),
 

@@ -187,9 +187,9 @@ export class Tiler {
         return new_fork[1];
     }
 
-    move(ext: Ext, x: number, y: number, w: number, h: number, direction: Direction, focus: () => window.ShellWindow | number | null) {
-        if (!this.window) return;
-        const win = ext.windows.get(this.window)
+    move(ext: Ext, window: Entity | null, x: number, y: number, w: number, h: number, direction: Direction, focus: () => window.ShellWindow | number | null) {
+        if (!window) return
+        const win = ext.windows.get(window);
         if (!win) return
 
         const place_pointer = () => {
@@ -201,10 +201,6 @@ export class Tiler {
             this.queue.send(() => {
                 const focused = ext.focus_window();
                 if (focused) {
-                    if (focused.meta.is_fullscreen()) {
-                        focused.meta.unmake_fullscreen();
-                    }
-
                     // The window that the focused window is being moved onto
                     const move_to = focus();
 
@@ -579,32 +575,32 @@ export class Tiler {
         }
     }
 
-    move_left(ext: Ext) {
-        this.move(ext, -1, 0, 0, 0, Direction.Left, move_window_or_monitor(
+    move_left(ext: Ext, window?: Entity) {
+        this.move(ext, window ?? this.window, -1, 0, 0, 0, Direction.Left, move_window_or_monitor(
             ext,
             ext.focus_selector.left,
             Meta.DisplayDirection.LEFT
         ));
     }
 
-    move_down(ext: Ext) {
-        this.move(ext, 0, 1, 0, 0, Direction.Down, move_window_or_monitor(
+    move_down(ext: Ext, window?: Entity) {
+        this.move(ext, window ?? this.window, 0, 1, 0, 0, Direction.Down, move_window_or_monitor(
             ext,
             ext.focus_selector.down,
             Meta.DisplayDirection.DOWN
         ));
     }
-
-    move_up(ext: Ext) {
-        this.move(ext, 0, -1, 0, 0, Direction.Up, move_window_or_monitor(
+ 
+    move_up(ext: Ext, window?: Entity) {
+        this.move(ext, window ?? this.window, 0, -1, 0, 0, Direction.Up, move_window_or_monitor(
             ext,
             ext.focus_selector.up,
             Meta.DisplayDirection.UP
         ));
     }
 
-    move_right(ext: Ext) {
-        this.move(ext, 1, 0, 0, 0, Direction.Right, move_window_or_monitor(
+    move_right(ext: Ext, window?: Entity) {
+        this.move(ext, window ?? this.window, 1, 0, 0, 0, Direction.Right, move_window_or_monitor(
             ext,
             ext.focus_selector.right,
             Meta.DisplayDirection.RIGHT

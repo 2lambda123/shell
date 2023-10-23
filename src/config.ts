@@ -34,6 +34,7 @@ export const DEFAULT_FLOAT_RULES: Array<FloatRule> = [
     { class: "Gnome-terminal", title: "Preferences – General" },
     { class: "Guake" },
     { class: "Io.elementary.sideload" },
+    { title: "JavaEmbeddedFrame" },
     { class: "KotatogramDesktop", title: "Media viewer" },
     { class: "Mozilla VPN" },
     { class: "update-manager", title: "Software Updater" },
@@ -42,7 +43,7 @@ export const DEFAULT_FLOAT_RULES: Array<FloatRule> = [
     { class: "Steam", title: "^.*(Guard|Login).*" },
     { class: "TelegramDesktop", title: "Media viewer" },
     { class: "Zotero", title: "Quick Format Citation" },
-    { class: "gjs" },
+    { class: "firefox", title: "^(?!.*Mozilla Firefox).*$" },
     { class: "gnome-screenshot" },
     { class: "ibus-.*" },
     { class: "jetbrains-toolbox" },
@@ -54,7 +55,9 @@ export const DEFAULT_FLOAT_RULES: Array<FloatRule> = [
     { class: "re.sonny.Junction" },
     { class: "system76-driver" },
     { class: "tilda" },
-    { class: "zoom" }
+    { class: "zoom" },
+    { class: "^.*action=join.*$"},
+    { class: "gjs" }
 
 ];
 
@@ -70,6 +73,7 @@ export interface WindowRule {
  */
 export const SKIPTASKBAR_EXCEPTIONS: Array<WindowRule> = [
     { class: "Conky", },
+    { class: "gjs" },
     { class: "Guake", },
     { class: "Com.github.amezin.ddterm", },
     { class: "plank", },
@@ -78,14 +82,6 @@ export const SKIPTASKBAR_EXCEPTIONS: Array<WindowRule> = [
 export interface FloatRule {
     class?: string;
     title?: string;
-};
-
-export enum DefaultPointerPosition {
-    TopLeft = "TOP_LEFT",
-    TopRight = "TOP_RIGHT",
-    BottomLeft = "BOTTOM_LEFT",
-    BottomRight = "BOTTOM_RIGHT",
-    Center = "CENTER",
 };
 
 export class Config {
@@ -100,12 +96,6 @@ export class Config {
 
     /** Logs window details on focus of window */
     log_on_focus: boolean = false;
-
-    /** Move pointer when you switch applications */
-    move_pointer_on_switch: boolean = false;
-
-    /** Specify default pointer position when you're switching windows */
-    default_pointer_position: DefaultPointerPosition = DefaultPointerPosition.TopLeft;
 
     /** Add a floating exception which matches by wm_class */
     add_app_exception(wmclass: string) {
@@ -179,8 +169,6 @@ export class Config {
             let c = conf.value;
             this.float = c.float;
             this.log_on_focus = c.log_on_focus;
-            this.default_pointer_position = c.default_pointer_position;
-            this.move_pointer_on_switch = c.move_pointer_on_switch;
         } else {
             log(`error loading conf: ${conf.why}`)
         }
